@@ -21,6 +21,6 @@ int main()
         printf("Received: %s\n", recv_data);
     }
 
-    socket_close(&s);
+    socket_close(&s);   
     return 0;
 }

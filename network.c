@@ -4,6 +4,7 @@
 #include <errno.h>
 #include <stdio.h>
 #include <stdlib.h>
+#include <arpa/inet.h>
 
 void *recv_thread_func(void *arg)
 {

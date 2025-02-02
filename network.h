@@ -37,6 +37,8 @@ int socket_recv(socket_t *s, char *data, int len);
 
 int socket_close(socket_t *s);
 
+int http_proxy_pack(const char *data, int len, char *buffer, int buffer_size, const char *target_host, int target_port);
+
 int http_proxy_send(socket_t *s, const char *data, int len);
 
 int http_proxy_unpack(const char *buffer, int len, char *data, int data_size);
