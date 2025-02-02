@@ -1,0 +1,25 @@
+#ifndef QUEUE_H
+#define QUEUE_H
+
+#include <stdio.h>
+#include <stdlib.h>
+
+typedef struct queue_node
+{
+    void *data_ptr;
+    int data_type; // used for identifying http or socks5
+    struct queue_node *next;
+} Node;
+
+typedef struct
+{
+    Node *front;
+    Node *rear;
+} Queue;
+
+void initQueue(Queue *q);
+int isEmpty(Queue *q);
+void enqueue(Queue *q, void *data_ptr, int data_type);
+void *dequeue(Queue *q);
+
+#endif // QUEUE_H__

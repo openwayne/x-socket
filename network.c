@@ -5,21 +5,25 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <arpa/inet.h>
+#include <pthread.h>
+#include "queue.h"
 
 void *recv_thread_func(void *arg)
 {
     socket_t *s = (socket_t *)arg;
+    char recv_data[BUFFER_SIZE];
     while (1)
     {
-        int len = recv(s->sockfd, s->recv_buffer, BUFFER_SIZE, 0);
-        if (len == -1)
+        printf("recv_thread_func\n");
+        int recv_len = recv(s->sockfd, recv_data, BUFFER_SIZE, 0);
+
+        int error = socket_recv(s, recv_data, recv_len);
+        if (error == -1)
         {
-            perror("recv");
+            perror("recv thread error!!");
             break;
         }
-        pthread_mutex_lock(&s->recv_mutex);
-        s->recv_len = len;
-        pthread_mutex_unlock(&s->recv_mutex);
+        memset(recv_data, 0, BUFFER_SIZE);
     }
     return NULL;
 }
@@ -70,6 +74,39 @@ int socket_init(socket_t *s, const char *proxy_ip, int proxy_port, int proxy_typ
         return -1;
     }
 
+    if(s->proxy_type == SOCKS5_CONNECT) {
+        if (send_socks5_greeting(s) == -1)
+        {
+            perror("send_socks5_greeting");
+            return -1;
+        }
+
+        s->socks5_state = SOCKS5_GREETING;
+
+        if (receive_socks5_greeting_response(s) == -1)
+        {
+            perror("receive_socks5_greeting_response");
+            return -1;
+        }
+
+        s->socks5_state = SOCKS5_GREETING_RESPONSE;
+
+        if (send_socks5_connection_request(s, "www.baidu.com", 80) == -1)
+        {
+            perror("send_socks5_connection_request");
+            return -1;
+        }
+
+        s->socks5_state = SOCKS5_GREETING_RESPONSE;
+
+        if (receive_socks5_connection_reply(s) == -1)
+        {
+            perror("receive_socks5_connection_reply");
+            return -1;
+        }
+        s->socks5_state = SOCKS5_GREETING_RESPONSE;
+    }
+
     pthread_mutex_init(&s->recv_mutex, NULL);
     pthread_mutex_init(&s->send_mutex, NULL);
 
@@ -94,55 +131,54 @@ int socket_send(socket_t *s, const char *data, int len, const char *target_host,
         len = BUFFER_SIZE;
     }
 
-    if (s->proxy_type == 0)
+    s->send_len = http_proxy_pack(data, len, s->send_buffer, BUFFER_SIZE, target_host, target_port);
+
+
+    if (s->send_len == -1)
     {
-        // HTTP
-        len = http_proxy_pack(data, len, s->send_buffer, BUFFER_SIZE, target_host, target_port);
-    }
-    else
-    {
-        // SOCKS
-        len = socks5_proxy_pack(data, len, s->send_buffer, BUFFER_SIZE, target_host, target_port);
+        pthread_mutex_unlock(&s->send_mutex);
+        perror("send buffer insufficient");
+        return -1;
     }
 
-    memcpy(s->send_buffer, data, len);
-    s->send_len = len;
+    printf("Send origin data: %s\n", data);
+    printf("Send data: %s\n", s->send_buffer);
+    printf("Send data Hex: ");
+    for (int i = 0; i < s->send_len; i++)
+    {
+        printf("%02X ", s->send_buffer[i]);
+    }
+    printf("\nSend data length: %d\n\n\n", s->send_len);
 
-    send(s->sockfd, s->send_buffer, len, 0);
+
+    send(s->sockfd, s->send_buffer, s->send_len, 0);
 
     pthread_mutex_unlock(&s->send_mutex);
     return 0;
 }
 
-int socket_recv(socket_t *s, char *data, int len)
+int socket_recv(socket_t *s, const char *data, int len)
 {
     pthread_mutex_lock(&s->recv_mutex);
-    int origin_data_len = recv(s->sockfd, s->recv_buffer, BUFFER_SIZE, 0);
-    int msg_len = 0;
+    printf("Received origin data: %s\n", data);
+    printf("Received data Hex: ");
+    for (int i = 0; i < len; i++)
+    {
+        printf("%02X ", data[i]);
+    }
+    printf("\nReceived data length: %d\n\n\n", len);
 
-    if (origin_data_len == 0)
+    http_message_t* msg = http_proxy_unpack(data, len);
+    if (msg == NULL)
     {
         pthread_mutex_unlock(&s->recv_mutex);
-        perror("recv_len == 0\n");
-        return 0;
+        return RECV_FAILED;
     }
 
-    if (s->proxy_type == 0)
-    {
-        // HTTP
-        msg_len = http_proxy_unpack(s->recv_buffer, origin_data_len, data, len);
-    }
-    else
-    {
-        // SOCKS
-        msg_len = socks5_proxy_unpack(s->recv_buffer, origin_data_len, data, len);
-    }
-
-    memcpy(data, s->recv_buffer, msg_len);
-    s->recv_len = msg_len;
+    enqueue(&s->recv_queue, msg, s->proxy_type);
 
     pthread_mutex_unlock(&s->recv_mutex);
-    return len;
+    return RECV_SUCCESS;
 }
 
 int socket_close(socket_t *s)
@@ -184,99 +220,153 @@ int http_proxy_pack(const char *data, int len, char *buffer, int buffer_size, co
     return request_len + headers_len + len;
 }
 
-int http_proxy_unpack(const char *buffer, int len, char *data, int data_size)
+http_message_t* http_proxy_unpack(const char *buffer, int len)
 {
-    char *status_line = strstr(buffer, "\r\n");
-    if (status_line == NULL)
+    printf("buffer: %s\n", buffer);
+    http_message_t* message = malloc(sizeof(http_message_t));
+
+    // Parse request line
+    char *line_end = strstr(buffer, "\r\n");
+    if (line_end == NULL)
     {
+        perror("Request line not found");
+        return NULL; // Request line not found
+    }
+    int line_len = line_end - buffer;
+    if (line_len >= sizeof(message->method))
+    {
+        perror("Method too long");
+        return NULL; // Method too long
+    }
+    memcpy(message->method, buffer, line_len);
+    message->method[line_len] = '\0';
+
+    // Parse headers
+    char *headers_start = line_end + 2;
+    char *headers_end = strstr(headers_start, "\r\n\r\n");
+    if (headers_end == NULL)
+    {
+        perror("Headers not found");
+        return NULL; // Headers not found
+    }
+    int headers_len = headers_end - headers_start;
+    if (headers_len >= sizeof(message->headers))
+    {
+        perror("Headers too long");
+        return NULL; // Headers too long
+    }
+    memcpy(message->headers, headers_start, headers_len);
+    message->headers[headers_len] = '\0';
+
+    // Parse body
+    char *body_start = headers_end + 4;
+    int body_len = len - (body_start - buffer);
+    if (body_len >= sizeof(message->body))
+    {
+        perror("Body too long");
+        return NULL; // Body too long
+    }
+    memcpy(message->body, body_start, body_len);
+    message->body[body_len] = '\0';
+
+    printf("http_message_t:\n");
+    printf("method: %s\n", message->method);
+    printf("uri: %s\n", message->uri);
+    printf("version: %s\n", message->version);
+    printf("headers: %s\n", message->headers);
+    printf("body: %s\n\n\n", message->body);
+
+    return message;
+}
+
+int send_socks5_greeting(socket_t *s)
+{
+    socks5_greeting_request_t greeting_req;
+    greeting_req.version = SOCKS5_VERSION;
+    greeting_req.nmethods = SOCKS5_NO_AUTH_METHOD;  // No authentication method
+    greeting_req.methods[0] = SOCKS5_NO_AUTH;  // No authentication
+
+    int len = send(s->sockfd, &greeting_req, sizeof(greeting_req), 0);
+    if (len == -1)
+    {
+        perror("Failed to send SOCKS5 greeting request");
         return -1;
     }
 
-    int header_len = status_line - buffer + 2;
-    int data_len = len - header_len;
-
-    if (data_len > data_size)
-    {
-        data_len = data_size;
-    }
-
-    memcpy(data, buffer + header_len, data_len);
-
-    return data_len;
+    return 0;
 }
 
-int socks5_proxy_pack(const char *data, int len, char *buffer, int buffer_size, const char *target_host, int target_port)
+int receive_socks5_greeting_response(socket_t *s)
 {
-    // Construct SOCKS5 request
-    unsigned char request[BUFFER_SIZE];
-    int request_len = 0;
-
-    // Version number
-    request[request_len++] = 0x05;
-
-    // Request command: CONNECT
-    request[request_len++] = 0x01;
-
-    // Reserved field
-    request[request_len++] = 0x00;
-
-    // Target address type: domain name
-    request[request_len++] = 0x03;
-
-    // Target address
-    request[request_len++] = strlen(target_host);
-    memcpy(request + request_len, target_host, strlen(target_host));
-    request_len += strlen(target_host);
-
-    // Target port
-    memcpy(request + request_len, &target_port, 2);
-    request_len += 2;
-
-    // Data
-    memcpy(request + request_len, data, len);
-    request_len += len;
-
-    // Copy to buffer
-    if (request_len > buffer_size)
+    socks5_greeting_response_t response;
+    int len = recv(s->sockfd, &response, sizeof(response), 0);
+    if (len == -1)
     {
-        return -1; // Buffer insufficient
+        perror("Failed to receive SOCKS5 greeting response");
+        return -1;
     }
-    memcpy(buffer, request, request_len);
 
-    return request_len;
+    if (response.version != SOCKS5_VERSION)
+    {
+        perror("Invalid SOCKS5 version");
+        return -1;
+    }
+
+    if (response.method != 0x00)
+    {
+        perror("Invalid SOCKS5 method");
+        return -1;
+    }
+
+    printf("receive_socks5_greeting_response\n");
+    printf("response.version: %d\n", response.version);
+    printf("response.method: %d\n\n\n", response.method);
+
+    return 0;
 }
 
-int socks5_proxy_unpack(const char *buffer, int len, char *data, int data_size)
+int send_socks5_connection_request(socket_t *s, const char *target_host, int target_port)
 {
-    // Parse SOCKS5 response
-    if (len < 4)
+    socks5_request_t request;
+    request.version = SOCKS5_VERSION;
+    request.command = 0x01;  // CONNECT command
+    request.reserved = 0x00;
+    request.address_type = 0x03;  // Domain name address type
+
+    uint8_t domain_len = strlen(target_host);
+    request.dst_addr.domain.length = domain_len;
+    strncpy(request.dst_addr.domain.domain, target_host, domain_len);
+    request.dst_port = htons(target_port);  // Network byte order
+
+    ssize_t bytes_sent = send(s->sockfd, &request, sizeof(request) - sizeof(request.dst_addr) + domain_len + 1, 0);
+    if (bytes_sent < 0) {
+        perror("Failed to send SOCKS5 connection request");
+        return -1;
+    }
+    return 0;
+}
+
+int receive_socks5_connection_reply(socket_t *s)
+{
+    socks5_response_t response;
+    int len = recv(s->sockfd, &response, sizeof(response), 0);
+    if (len == -1)
     {
-        return -1; // Response format error
+        perror("Failed to receive SOCKS5 connection reply");
+        return -1;
     }
 
-    // Check version number
-    if (buffer[0] != 0x05)
+    if (response.version != SOCKS5_VERSION)
     {
-        return -1; // Version number error
+        perror("Invalid SOCKS5 version");
+        return -1;
     }
 
-    // Check response status
-    if (buffer[1] != 0x00)
+    if (response.reply != 0x00)
     {
-        return -1; // Response status error
+        perror("SOCKS5 connection reply error");
+        return -1;
     }
 
-    // Get data length
-    int data_len = len - 4;
-
-    // Check data length
-    if (data_len > data_size)
-    {
-        data_len = data_size;
-    }
-
-    // Copy data to output buffer
-    memcpy(data, buffer + 4, data_len);
-
-    return data_len;
+    return 0;
 }

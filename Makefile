@@ -5,8 +5,8 @@ CFLAGS = -Wall -g
 
 all: client server
 
-client: client.o network.o
-	$(CC) $(CFLAGS) -o client client.o network.o
+client: client.o network.o queue.o
+	$(CC) $(CFLAGS) -o client client.o network.o queue.o
 
 server: server.o
 	$(CC) $(CFLAGS) -o server server.o
@@ -20,6 +20,8 @@ network.o: network.c network.h
 server.o: server.c
 	$(CC) $(CFLAGS) -c server.c	-o server.o
 
+queue.o: queue.c queue.h
+	$(CC) $(CFLAGS) -c queue.c -o queue.o
 
 clean:
 	rm -f *.o client server
