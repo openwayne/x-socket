@@ -122,7 +122,8 @@ void *handleSocks5Proxy(void *arg)
     printf("\nReceived data length: %ld\n\n\n", len);
 
     if (len < 7 || buffer[1] != 0x01)
-    { // 只处理 CONNECT
+    { 
+        // only support connect command
         close(clientSock);
         *returnValue = -1;
         return (void *)returnValue;
@@ -210,7 +211,7 @@ void *handleHttpProxy(void *arg)
     }
     *hostEnd = '\0';
 
-    // 提取端口
+    // parse host and port
     char *portStr = strchr(hostStart, ':');
     int port = portStr ? atoi(portStr + 1) : 80;
     char host[256];
@@ -254,7 +255,7 @@ int forwardData(int fromSock, int toSock)
 {
     char buffer[BUFFER_SIZE];
     ssize_t len;
-    // 数据转发
+    // use select to handle bidirectional data forwarding
     fd_set fds;
     while (1)
     {
@@ -287,7 +288,7 @@ int forwardData(int fromSock, int toSock)
 
 int initForwardSocket(const char *host, int port)
 {
-    // 创建目标套接字
+    // create socket
     int targetSock = socket(AF_INET, SOCK_STREAM, 0);
     struct sockaddr_in targetAddr = {
         .sin_family = AF_INET,
@@ -303,7 +304,7 @@ int initForwardSocket(const char *host, int port)
         memcpy(&targetAddr.sin_addr, hostent->h_addr, hostent->h_length);
     }
 
-    // 连接目标服务器
+    // connect to target
     if (connect(targetSock, (struct sockaddr *)&targetAddr, sizeof(targetAddr)) < 0)
     {
         perror("Connect failed");
@@ -311,4 +312,43 @@ int initForwardSocket(const char *host, int port)
     }
 
     return targetSock;
+}
+
+int socks5_connect(int sock, const char *host, int port) {
+    // handshake process    
+    unsigned char handshake[] = {0x05, 0x01, 0x00}; // VER, NMETHODS, METHODS
+    send(sock, handshake, sizeof(handshake), 0);
+
+    // read handshake response
+    unsigned char handshake_res[2];
+    recv(sock, handshake_res, 2, 0);
+    if (handshake_res[0] != 0x05 || handshake_res[1] != 0x00) {
+        perror("SOCKS5 handshake error!\n");
+        return -1;
+    }
+
+    // construct request
+    unsigned char request[256] = {
+        0x05, // VER
+        0x01, // CMD: CONNECT
+        0x00, // RSV
+        0x03  // ATYP: DOMAINNAME
+    };
+
+    size_t host_len = strlen(host);
+    request[4] = host_len; // domain name length
+    memcpy(request + 5, host, host_len);
+    *(unsigned short*)(request + 5 + host_len) = htons(port);
+
+    // send request
+    send(sock, request, 5 + host_len + 2, 0);
+
+    // read response
+    unsigned char response[10];
+    ssize_t len = recv(sock, response, sizeof(response), 0);
+    if (len < 10 || response[1] != 0x00) {
+        perror("SOCKS5 connect error\n\n");
+        return -1;
+    }
+    return 0;
 }

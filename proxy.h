@@ -16,12 +16,13 @@
 #define SOCKS5_PORT 8777
 #define HTTP_PORT 8778
 
-void* initSocks5Thread(void *arg);
-void* initHttpThread(void *arg);
-void* handleSocks5Proxy(void *arg);
-void* handleHttpProxy(void *arg);
+void *initSocks5Thread(void *arg);
+void *initHttpThread(void *arg);
+void *handleSocks5Proxy(void *arg);
+void *handleHttpProxy(void *arg);
 int forwardData(int fromSock, int toSock);
 int initForwardSocket(const char *host, int port);
 
+int socks5_connect(int sock, const char *host, int port);
 
 #endif // __PROXY_H__

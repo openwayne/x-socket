@@ -9,10 +9,13 @@ HDRS = proxy.h
 
 LDFLAGS = -shared
 
-all: $(OBJS) proxy_server libproxy.so process_main
+all: $(OBJS) proxy_server libproxy.so libhook.so process_main
 
 libproxy.so: proxy.o
 	$(CC) $(LDFLAGS) -o libproxy.so proxy.o
+
+libhook.so: hook.o
+	$(CC) $(LDFLAGS) -o libhook.so hook.o proxy.o
 
 proxy_server: proxy.o proxy_server.o
 	gcc proxy.o proxy_server.o -o proxy_server -lpthread
