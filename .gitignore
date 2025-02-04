@@ -4,3 +4,4 @@ client
 .vscode
 libproxy.so
 proxy_server
+process_main

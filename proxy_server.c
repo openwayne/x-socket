@@ -8,13 +8,13 @@ int main() {
     void *http_status = NULL, *socks5_status = NULL;
 
     // Create HTTP proxy thread
-    if (pthread_create(&http_thread, NULL, init_http_thread, NULL) != 0) {
+    if (pthread_create(&http_thread, NULL, initHttpThread, NULL) != 0) {
         perror("Failed to create HTTP proxy thread");
         exit(EXIT_FAILURE);
     }
 
     // Create SOCKS5 proxy thread
-    if (pthread_create(&socks5_thread, NULL, init_socks5_thread, NULL) != 0) {
+    if (pthread_create(&socks5_thread, NULL, initSocks5Thread, NULL) != 0) {
         perror("Failed to create SOCKS5 proxy thread");
         exit(EXIT_FAILURE);
     }

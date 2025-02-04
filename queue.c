@@ -9,13 +9,12 @@ int isEmpty(Queue *q) {
     return q->front == NULL;
 }
 
-void enqueue(Queue *q, void* data_ptr, int data_type) {
+void enqueue(Queue *q, void* data_ptr) {
     Node *newNode = (Node *)malloc(sizeof(Node));
     if (newNode == NULL) {
         printf("mem alloc error\n");
         return;
     }
-    newNode->data_type = data_type;
     newNode->data_ptr = data_ptr;
     newNode->next = NULL;
 

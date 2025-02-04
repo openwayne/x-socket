@@ -7,7 +7,6 @@
 typedef struct queue_node
 {
     void *data_ptr;
-    int data_type; // used for identifying http or socks5
     struct queue_node *next;
 } Node;
 
@@ -19,7 +18,7 @@ typedef struct
 
 void initQueue(Queue *q);
 int isEmpty(Queue *q);
-void enqueue(Queue *q, void *data_ptr, int data_type);
+void enqueue(Queue *q, void *data_ptr);
 void *dequeue(Queue *q);
 
 #endif // QUEUE_H__
