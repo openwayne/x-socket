@@ -17,10 +17,7 @@
 #include <netinet/in.h>
 #include <arpa/inet.h>
 #include <sys/syscall.h>
-#include <sys/user.h>
 #endif
-
-
 
 typedef struct ProxyInfo
 {
@@ -29,7 +26,7 @@ typedef struct ProxyInfo
     int type;
 } ProxyInfo;
 
-ProxyInfo* globalProxyInfo = NULL;
+ProxyInfo *globalProxyInfo = NULL;
 
 // for client hook
 void setProxyInfo(const char *host, int port, int type);
@@ -38,7 +35,7 @@ void unsetProxyInfo();
 #if defined(_WIN32) || defined(_WIN64)
 int InjectDLL(DWORD processId, const char *dllPath);
 int EjectDLL(DWORD processId, const char *dllPath);
-typedef int (WINAPI *CONNECTPROC)(int, const struct sockaddr *, socklen_t);
+typedef int(WINAPI *CONNECTPROC)(int, const struct sockaddr *, socklen_t);
 CONNECTPROC originalConnect = connect;
 
 int WINAPI proxyConnect(int sockfd, const struct sockaddr *addr, socklen_t addrlen);
@@ -60,6 +57,5 @@ void trace_syscalls(pid_t pid);
 void handle_connect(pid_t pid);
 
 #endif
-
 
 #endif // __HOOK_H__

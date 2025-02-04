@@ -127,7 +127,8 @@ int connect(int sockfd, const struct sockaddr *addr, socklen_t addrlen)
     return originalConnect(sockfd, addr, addrlen);
 }
 
-int proxyConnect(int sockfd, const struct sockaddr *addr, socklen_t addrlen) {
+int proxyConnect(int sockfd, const struct sockaddr *addr, socklen_t addrlen)
+{
     if (globalProxyInfo != NULL)
     {
         printf("Connecting to %s:%d\n", globalProxyInfo->host, globalProxyInfo->port);
@@ -154,8 +155,10 @@ int proxyConnect(int sockfd, const struct sockaddr *addr, socklen_t addrlen) {
 }
 
 // attach to process
-int attach_to_process(pid_t pid) {
-    if (ptrace(PTRACE_ATTACH, pid, NULL, NULL) == -1) {
+int attach_to_process(pid_t pid)
+{
+    if (ptrace(PTRACE_ATTACH, pid, NULL, NULL) == -1)
+    {
         perror("Failed to attach to process");
         return -1;
     }
@@ -164,8 +167,10 @@ int attach_to_process(pid_t pid) {
 }
 
 // detach from process
-int detach_from_process(pid_t pid) {
-    if (ptrace(PTRACE_DETACH, pid, NULL, NULL) == -1) {
+int detach_from_process(pid_t pid)
+{
+    if (ptrace(PTRACE_DETACH, pid, NULL, NULL) == -1)
+    {
         perror("Failed to detach from process");
         return -1;
     }
@@ -173,47 +178,56 @@ int detach_from_process(pid_t pid) {
 }
 
 // hook function
-void handle_connect(pid_t pid) {
+void handle_connect(pid_t pid)
+{
     struct user_regs_struct regs;
 
     // get registers
-    if (ptrace(PTRACE_GETREGS, pid, NULL, &regs) == -1) {
+    if (ptrace(PTRACE_GETREGS, pid, NULL, &regs) == -1)
+    {
         perror("Failed to get registers");
         return;
     }
 
     // check if the syscall is connect
-    if (regs.orig_rax == CONNECT_SYSCALL_NUM) {
+    if (regs.orig_rax == CONNECT_SYSCALL_NUM)
+    {
         struct sockaddr_in addr;
         // peek data to get sockaddr_in
-        if (ptrace(PTRACE_PEEKDATA, pid, regs.rsi, &addr) == -1) {
+        if (ptrace(PTRACE_PEEKDATA, pid, regs.rsi, &addr) == -1)
+        {
             perror("Failed to peek data");
             return;
         }
 
         // get host and port
         int sockfd = regs.rdi;
-        proxyConnect(sockfd, (struct sockaddr *) &addr, sizeof(addr));
+        proxyConnect(sockfd, (struct sockaddr *)&addr, sizeof(addr));
 
         // poke data to set sockaddr_in
-        if (ptrace(PTRACE_POKEDATA, pid, regs.rsi, &addr) == -1) {
+        if (ptrace(PTRACE_POKEDATA, pid, regs.rsi, &addr) == -1)
+        {
             perror("Failed to poke data");
         }
     }
 }
 
 // trace syscalls
-void trace_syscalls(pid_t pid) {
+void trace_syscalls(pid_t pid)
+{
     int status;
-    while (1) {
+    while (1)
+    {
         // wait for syscall
-        if (ptrace(PTRACE_SYSCALL, pid, NULL, NULL) == -1) {
+        if (ptrace(PTRACE_SYSCALL, pid, NULL, NULL) == -1)
+        {
             perror("Failed to trace syscall");
             break;
         }
 
         waitpid(pid, &status, 0);
-        if (WIFEXITED(status)) {
+        if (WIFEXITED(status))
+        {
             printf("Process exited\n");
             break;
         }
@@ -221,6 +235,5 @@ void trace_syscalls(pid_t pid) {
         handle_connect(pid);
     }
 }
-
 
 #endif

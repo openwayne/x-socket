@@ -8,17 +8,17 @@ int main(int argc, char *argv[]) {
 
     pid_t target_pid = atoi(argv[1]);
 
-    // 附加到目标进程
+    // attach to target process
     if (attach_to_process(target_pid) == -1) {
         return 1;
     }
 
     printf("Attached to process %d, tracing syscalls...\n", target_pid);
 
-    // 开始跟踪系统调用
+    // trace syscalls
     trace_syscalls(target_pid);
 
-    // 从目标进程分离
+    // detach from target process
     detach_from_process(target_pid);
 
     return 0;
