@@ -122,4 +122,40 @@ int connect(int sockfd, const struct sockaddr *addr, socklen_t addrlen)
 
     return originalConnect(sockfd, addr, addrlen);
 }
+
+int proxyConnect(int sockfd, const struct sockaddr *addr, socklen_t addrlen) {
+    struct sockaddr_in *custom_addr = (struct sockaddr_in *) addr;
+
+    // 修改为自定义地址和端口（比如代理服务器地址）
+    inet_pton(AF_INET, "127.0.0.1", &custom_addr->sin_addr);  // 重定向到本地 127.0.0.1
+    custom_addr->sin_port = htons(8080);  // 使用自定义端口 8080
+
+    // 调用系统原始的 connect 函数
+    return syscall(SYS_connect, sockfd, (struct sockaddr *) custom_addr, addrlen);
+
+    if (globalProxyInfo != NULL)
+    {
+        printf("Connecting to %s:%d\n", globalProxyInfo->host, globalProxyInfo->port);
+        printf("Connecting type: %d\n", globalProxyInfo->type);
+        struct sockaddr_in *addr_in = (struct sockaddr_in *)addr;
+        addr_in->sin_family = AF_INET;
+        addr_in->sin_port = htons(globalProxyInfo->port);
+        addr_in->sin_addr.s_addr = inet_addr(globalProxyInfo->host);
+
+        int connectRet = syscall(SYS_connect, sockfd, addr, addrlen);
+
+        if (connectRet < 0)
+        {
+            return connectRet;
+        }
+
+        if (globalProxyInfo->type == 1)
+        {
+            // SOCKS5 proxy has extra handshake
+            return socks5_connect(sockfd, globalProxyInfo->host, globalProxyInfo->port);
+        }
+    }
+    return syscall(SYS_connect, sockfd, addr, addrlen);
+}
+
 #endif
