@@ -314,7 +314,7 @@ int initForwardSocket(const char *host, int port)
     return targetSock;
 }
 
-int socks5_connect(int sock, const char *host, int port) {
+int socks5Connect(int sock, const char *host, int port) {
     // handshake process    
     unsigned char handshake[] = {0x05, 0x01, 0x00}; // VER, NMETHODS, METHODS
     send(sock, handshake, sizeof(handshake), 0);

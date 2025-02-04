@@ -26,7 +26,8 @@ typedef struct ProxyInfo
     int type;
 } ProxyInfo;
 
-ProxyInfo *globalProxyInfo = NULL;
+extern ProxyInfo *globalProxyInfo;
+extern int (*originalConnect)(int, const struct sockaddr *, socklen_t);
 
 // for client hook
 void setProxyInfo(const char *host, int port, int type);
@@ -36,13 +37,10 @@ void unsetProxyInfo();
 int InjectDLL(DWORD processId, const char *dllPath);
 int EjectDLL(DWORD processId, const char *dllPath);
 typedef int(WINAPI *CONNECTPROC)(int, const struct sockaddr *, socklen_t);
-CONNECTPROC originalConnect = connect;
 
 int WINAPI proxyConnect(int sockfd, const struct sockaddr *addr, socklen_t addrlen);
 void HookFunctions();
 #else
-int (*originalConnect)(int, const struct sockaddr *, socklen_t) = NULL;
-ssize_t (*originalSend)(int, const void *, size_t, int) = NULL;
 
 // LD_PRELOAD version
 int connect(int sockfd, const struct sockaddr *addr, socklen_t addrlen);

@@ -1,6 +1,30 @@
 #include "hook.h"
 
+ProxyInfo *globalProxyInfo = NULL;
+
+int (*originalConnect)(int, const struct sockaddr *, socklen_t) = NULL;
+
+void setProxyInfo(const char *host, int port, int type)
+{
+    globalProxyInfo = (ProxyInfo *)malloc(sizeof(ProxyInfo));
+    strcpy(globalProxyInfo->host, host);
+    globalProxyInfo->port = port;
+    globalProxyInfo->type = type;
+}
+
+void unsetProxyInfo()
+{
+    if (globalProxyInfo != NULL)
+    {
+        free(globalProxyInfo);
+        globalProxyInfo = NULL;
+    }
+}
+
+
 #if defined(_WIN32) || defined(_WIN64)
+CONNECTPROC originalConnect = connect;
+
 int InjectDLL(DWORD processId, const char *dllPath)
 {
     HANDLE hProcess = OpenProcess(PROCESS_ALL_ACCESS, FALSE, processId);
@@ -73,7 +97,7 @@ int WINAPI proxyConnect(int sockfd, const struct sockaddr *addr, socklen_t addrl
         if (globalProxyInfo->type == 1)
         {
             // SOCKS5 proxy has extra handshake
-            return socks5_connect(sockfd, globalProxyInfo->host, globalProxyInfo->port);
+            return socks5Connect(sockfd, globalProxyInfo->host, globalProxyInfo->port);
         }
     }
 
@@ -91,6 +115,7 @@ void HookFunctions()
 #include <sys/ptrace.h>
 #include <sys/user.h>
 #include <sys/wait.h>
+
 
 int connect(int sockfd, const struct sockaddr *addr, socklen_t addrlen)
 {
@@ -120,7 +145,7 @@ int connect(int sockfd, const struct sockaddr *addr, socklen_t addrlen)
         if (globalProxyInfo->type == 1)
         {
             // SOCKS5 proxy has extra handshake
-            return socks5_connect(sockfd, globalProxyInfo->host, globalProxyInfo->port);
+            return socks5Connect(sockfd, globalProxyInfo->host, globalProxyInfo->port);
         }
     }
 
@@ -148,7 +173,7 @@ int proxyConnect(int sockfd, const struct sockaddr *addr, socklen_t addrlen)
         if (globalProxyInfo->type == 1)
         {
             // SOCKS5 proxy has extra handshake
-            return socks5_connect(sockfd, globalProxyInfo->host, globalProxyInfo->port);
+            return socks5Connect(sockfd, globalProxyInfo->host, globalProxyInfo->port);
         }
     }
     return syscall(SYS_connect, sockfd, addr, addrlen);

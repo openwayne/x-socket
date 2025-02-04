@@ -1,10 +1,12 @@
 #include "hook.h"
 
 int main(int argc, char *argv[]) {
-    if (argc != 2) {
-        printf("Usage: %s <pid>\n", argv[0]);
+    if (argc != 5) {
+        printf("Usage: %s <pid> <proxy_host> <proxy_port> <proxy_type>\n", argv[0]);
         return 1;
     }
+
+    setProxyInfo(argv[2], atoi(argv[3]), atoi(argv[4]));
 
     pid_t target_pid = atoi(argv[1]);
 
@@ -20,6 +22,7 @@ int main(int argc, char *argv[]) {
 
     // detach from target process
     detach_from_process(target_pid);
+    unsetProxyInfo();
 
     return 0;
 }

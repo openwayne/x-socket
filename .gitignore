@@ -5,3 +5,4 @@ client
 proxy_server
 process_main
 *.so
+hook_main
