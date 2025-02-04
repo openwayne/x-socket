@@ -1,12 +1,12 @@
-# Proxy Application - Installation 1
+# x-socket
 
 ## Overview
-This is the first installment of the Proxy Application project. It implements the client-side functionality using C and the BSD socket API. The client connects to a remote server, sends a test message (simulating intercepted network data), and prints the server's response.
+This is a proxy project. It implements the client-side and server-side functionality using C and the BSD socket API. The client connects to a remote server, sends a test message (simulating intercepted network data), and prints the server's response. It can also get information about processes under different operating systems.
 
 ## Requirements
 - GCC or another C compiler
 - Unix-like operating system (Linux, macOS, or Windows with a suitable POSIX environment)
-- Make (optional, if you wish to use the provided Makefile)
+- Make
 
 ## Building the Client
 1. Clone the repository or download the source files.
@@ -14,3 +14,4 @@ This is the first installment of the Proxy Application project. It implements th
 3. Run the command:
    ```bash
    make
+   ```
