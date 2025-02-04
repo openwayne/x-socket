@@ -12,6 +12,9 @@
         "type_traits": "cpp",
         "cmath": "cpp",
         "limits": "cpp",
-        "utility": "cpp"
+        "utility": "cpp",
+        "pthread.h": "c",
+        "buffer": "c",
+        "stdlib.h": "c"
     }
 }
