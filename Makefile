@@ -1,27 +1,24 @@
 .PHONY: clean
 
 CC = gcc
-CFLAGS = -Wall -g
+CFLAGS = -Wall -g -lpthread -fPIC
 
-all: client server
+SRCS = proxy.c proxy_server.c
+OBJS = $(SRCS:.c=.o)
+HDRS = proxy.h
 
-client: client.o network.o queue.o
-	$(CC) $(CFLAGS) -o client client.o network.o queue.o
+LDFLAGS = -shared
 
-server: server.o
-	$(CC) $(CFLAGS) -o server server.o
+all: $(OBJS) proxy_server libproxy.so
 
-client.o: client.c network.h
-	$(CC) $(CFLAGS) -c client.c -o client.o
+libproxy.so: proxy.o
+	$(CC) $(LDFLAGS) -o libproxy.so proxy.o
 
-network.o: network.c network.h
-	$(CC) $(CFLAGS) -c network.c -o network.o
+proxy_server: proxy.o proxy_server.o
+	gcc proxy.o proxy_server.o -o proxy_server -lpthread
 
-server.o: server.c
-	$(CC) $(CFLAGS) -c server.c	-o server.o
-
-queue.o: queue.c queue.h
-	$(CC) $(CFLAGS) -c queue.c -o queue.o
+$(OBJS): $(SRCS) $(HDRS)
+	gcc $(CFLAGS) -c $(SRCS)
 
 clean:
-	rm -f *.o client server
+	rm -f $(TARGET) $(OBJS) proxy_server libproxy.so

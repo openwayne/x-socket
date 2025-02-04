@@ -5,7 +5,7 @@
 
 int main() {
     pthread_t http_thread, socks5_thread;
-    void *http_status, *socks5_status;
+    void *http_status = NULL, *socks5_status = NULL;
 
     // Create HTTP proxy thread
     if (pthread_create(&http_thread, NULL, init_http_thread, NULL) != 0) {
@@ -26,12 +26,6 @@ int main() {
     pthread_join(http_thread, http_status);
     printf("Http thread finished\n");
     printf("Http thread status: %d\n", *(int *)http_status);
-
-    int *result = (int *)http_status;
-    printf("Http thread result: %d\n", *result);
-
-    result = (int *)socks5_status;
-    printf("Socks5 thread result: %d\n", *result);
 
     free(http_status);
     free(socks5_status);
