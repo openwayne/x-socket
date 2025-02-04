@@ -17,6 +17,7 @@
 #include <netinet/in.h>
 #include <arpa/inet.h>
 #include <sys/syscall.h>
+#include <sys/user.h>
 #endif
 
 
@@ -55,6 +56,9 @@ int attach_to_process(pid_t target_pid);
 int detach_from_process(pid_t target_pid);
 int hook_function(pid_t target_pid, const char *function_name, void *hook_function, void **original_function);
 int proxyConnect(int sockfd, const struct sockaddr *addr, socklen_t addrlen);
+void trace_syscalls(pid_t pid);
+void handle_connect(pid_t pid);
+
 #endif
 
 

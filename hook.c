@@ -88,6 +88,10 @@ void HookFunctions()
     DetourTransactionCommit();
 }
 #else
+#include <sys/ptrace.h>
+#include <sys/user.h>
+#include <sys/wait.h>
+
 int connect(int sockfd, const struct sockaddr *addr, socklen_t addrlen)
 {
     printf("Intercepted connect call\n");
@@ -124,15 +128,6 @@ int connect(int sockfd, const struct sockaddr *addr, socklen_t addrlen)
 }
 
 int proxyConnect(int sockfd, const struct sockaddr *addr, socklen_t addrlen) {
-    struct sockaddr_in *custom_addr = (struct sockaddr_in *) addr;
-
-    // 修改为自定义地址和端口（比如代理服务器地址）
-    inet_pton(AF_INET, "127.0.0.1", &custom_addr->sin_addr);  // 重定向到本地 127.0.0.1
-    custom_addr->sin_port = htons(8080);  // 使用自定义端口 8080
-
-    // 调用系统原始的 connect 函数
-    return syscall(SYS_connect, sockfd, (struct sockaddr *) custom_addr, addrlen);
-
     if (globalProxyInfo != NULL)
     {
         printf("Connecting to %s:%d\n", globalProxyInfo->host, globalProxyInfo->port);
@@ -157,5 +152,75 @@ int proxyConnect(int sockfd, const struct sockaddr *addr, socklen_t addrlen) {
     }
     return syscall(SYS_connect, sockfd, addr, addrlen);
 }
+
+// attach to process
+int attach_to_process(pid_t pid) {
+    if (ptrace(PTRACE_ATTACH, pid, NULL, NULL) == -1) {
+        perror("Failed to attach to process");
+        return -1;
+    }
+    waitpid(pid, NULL, 0);
+    return 0;
+}
+
+// detach from process
+int detach_from_process(pid_t pid) {
+    if (ptrace(PTRACE_DETACH, pid, NULL, NULL) == -1) {
+        perror("Failed to detach from process");
+        return -1;
+    }
+    return 0;
+}
+
+// hook function
+void handle_connect(pid_t pid) {
+    struct user_regs_struct regs;
+
+    // get registers
+    if (ptrace(PTRACE_GETREGS, pid, NULL, &regs) == -1) {
+        perror("Failed to get registers");
+        return;
+    }
+
+    // check if the syscall is connect
+    if (regs.orig_rax == CONNECT_SYSCALL_NUM) {
+        struct sockaddr_in addr;
+        // peek data to get sockaddr_in
+        if (ptrace(PTRACE_PEEKDATA, pid, regs.rsi, &addr) == -1) {
+            perror("Failed to peek data");
+            return;
+        }
+
+        // get host and port
+        int sockfd = regs.rdi;
+        proxyConnect(sockfd, (struct sockaddr *) &addr, sizeof(addr));
+
+        // poke data to set sockaddr_in
+        if (ptrace(PTRACE_POKEDATA, pid, regs.rsi, &addr) == -1) {
+            perror("Failed to poke data");
+        }
+    }
+}
+
+// trace syscalls
+void trace_syscalls(pid_t pid) {
+    int status;
+    while (1) {
+        // wait for syscall
+        if (ptrace(PTRACE_SYSCALL, pid, NULL, NULL) == -1) {
+            perror("Failed to trace syscall");
+            break;
+        }
+
+        waitpid(pid, &status, 0);
+        if (WIFEXITED(status)) {
+            printf("Process exited\n");
+            break;
+        }
+
+        handle_connect(pid);
+    }
+}
+
 
 #endif
