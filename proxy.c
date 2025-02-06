@@ -315,13 +315,21 @@ int initForwardSocket(const char *host, int port)
 }
 
 int socks5Connect(int sock, const char *host, int port) {
-    // handshake process    
+    // handshake process
     unsigned char handshake[] = {0x05, 0x01, 0x00}; // VER, NMETHODS, METHODS
     send(sock, handshake, sizeof(handshake), 0);
+    printf("Sent handshake\n");
 
     // read handshake response
     unsigned char handshake_res[2];
     recv(sock, handshake_res, 2, 0);
+    printf("Received handshake response\n");
+    printf("Received HEX: ");
+    for (int i = 0; i < 2; i++)
+    {
+        printf("%02X ", handshake_res[i]);
+    }
+    printf("\n\n\n");
     if (handshake_res[0] != 0x05 || handshake_res[1] != 0x00) {
         perror("SOCKS5 handshake error!\n");
         return -1;
@@ -342,10 +350,16 @@ int socks5Connect(int sock, const char *host, int port) {
 
     // send request
     send(sock, request, 5 + host_len + 2, 0);
-
+    printf("Sent request\n");
     // read response
     unsigned char response[10];
     ssize_t len = recv(sock, response, sizeof(response), 0);
+    printf("Received response\n");
+    printf("Received HEX: ");
+    for (int i = 0; i < len; i++)
+    {
+        printf("%02X ", response[i]);
+    }
     if (len < 10 || response[1] != 0x00) {
         perror("SOCKS5 connect error\n\n");
         return -1;
