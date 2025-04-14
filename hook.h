@@ -43,7 +43,7 @@ void HookFunctions();
 #else
 
 // Linux
-extern int client_main(char* host, int* port, pid_t pid);
+extern int client_main(char* host, int port, pid_t pid);
 
 #endif
 
